@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/setDimentionFragment">
+
+    <fragment
+        android:id="@+id/setDimentionFragment"
+        android:name="com.example.matrixdiagonizer.SetDimentionFragment"
+        android:label="fragment_set_dimention"
+        tools:layout="@layout/fragment_set_dimention" >
+        <action
+            android:id="@+id/action_setDimentionFragment_to_fillMatrixFragment"
+            app:destination="@id/fillMatrixFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/fillMatrixFragment"
+        android:name="com.example.matrixdiagonizer.FillMatrixFragment"
+        android:label="fragment_fill_matrix"
+        tools:layout="@layout/fragment_fill_matrix" >
+        <argument
+            android:name="matrixDimension"
+            app:argType="integer" />
+        <action
+            android:id="@+id/action_fillMatrixFragment_to_findEigenVectorsFragment"
+            app:destination="@id/findEigenVectorsFragment" />
+        <action
+            android:id="@+id/action_fillMatrixFragment_to_printResultFragment"
+            app:destination="@id/printResultFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/findEigenVectorsFragment"
+        android:name="com.example.matrixdiagonizer.FindEigenVectorsFragment"
+        android:label="fragment_find_eigen_vectors"
+        tools:layout="@layout/fragment_find_eigen_vectors" >
+        <argument
+            android:name="matrix"
+            app:argType="org.ejml.simple.SimpleMatrix" />
+    </fragment>
+    <fragment
+        android:id="@+id/printResultFragment"
+        android:name="com.example.matrixdiagonizer.PrintResultFragment"
+        android:label="fragment_print_result"
+        tools:layout="@layout/fragment_print_result" >
+        <argument
+            android:name="answer"
+            app:argType="string" />
+    </fragment>
+</navigation>
