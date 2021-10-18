@@ -18,6 +18,10 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import org.ejml.data.Complex_F64;
+import org.ejml.equation.Equation;
+import org.ejml.equation.Sequence;
+import org.ejml.equation.Variable;
+import org.ejml.equation.VariableType;
 import org.ejml.simple.SimpleMatrix;
 import org.jetbrains.annotations.NotNull;
 
@@ -117,11 +121,13 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
                 SimpleMatrix JordanMatrix = pair.second;
                 SimpleMatrix JordanBase = pair.first;
 
-                sb.append("Жорданова матриця:\n");
+                sb.append("Жорданова матриця (J):\n");
                 sb.append(printMatrix(JordanMatrix) + "\n");
 
-                sb.append("Жордановий базис:\n");
+                sb.append("Жордановий базис (U):\n");
                 sb.append(printMatrix(JordanBase) + "\n");
+
+                sb.append("Де J = U^(-1) * A * U");
 
                 break;
             default:
@@ -169,13 +175,13 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
 
         // setting the map with values
         for (Complex_F64 eigenValue : getMainMatrix(matrix).eig().getEigenvalues()) {
-            eigenValues.merge(smartRaund(eigenValue), 1, Integer::sum);
+            eigenValues.merge(smartRound(eigenValue), 1, Integer::sum);
         }
 
         return eigenValues;
     }
 
-    private Double smartRaund(@NotNull Complex_F64 eigenValue) {
+    private Double smartRound(@NotNull Complex_F64 eigenValue) {
         Double value = eigenValue.getReal();
         Double valueRound = new BigDecimal(value).setScale(3, RoundingMode.HALF_UP)
                 .doubleValue();
@@ -186,7 +192,7 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
         return value;
     }
 
-    private Double smartRaund(@NotNull double eigenValue) {
+    private Double smartRound(double eigenValue) {
         Double value = eigenValue;
         Double valueRound = new BigDecimal(value).setScale(3, RoundingMode.HALF_UP)
                 .doubleValue();
@@ -234,6 +240,15 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
             pair = getLocalBasis(tempMatrix, pair, tempMatrix, 1, 0, eigenValues.get(eigenValue), eigenValue);
         }
 
+        /*Equation equation = new Equation();
+        //SimpleMatrix minOne = pair.second.invert();
+        equation.alias(matrix, "A", pair.second, "J");
+        //equation.compile("J = U*A*inv(U)");
+        Sequence predictU = equation.compile("U*J*inv(U) = A");
+        predictU.perform();
+        //pair.first = equation.lookupSimple("U");
+        Pair<SimpleMatrix, SimpleMatrix> pair2 = new Pair<>(equation.lookupSimple("U"), pair.second);*/
+
         return pair;
     }
 
@@ -259,9 +274,22 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
                     if (/*JordanBase.numCols() < JordanBase.numRows()*/ numberOfWrittenValuesAll < targetNumberOfVectors) {
                         // возводим вектор на нужную высоту
                         SimpleMatrix tempVector = nullSpace.extractVector(false, i);
-                        for (int k = 1; k < j; k++) {
+                        /*for (int k = 1; k < j; k++) {
+                            tempVector = startMatrix.mult(tempVector);// tempV = initTempV * tempV
+                        }*/
+                        if (j > 1) {
+                            SimpleMatrix powerMatrix = startMatrix;
+                            for (int k = 1; k < j; k++) {
+                                powerMatrix = powerMatrix.mult(startMatrix);
+                            }
                             tempVector = startMatrix.mult(tempVector);
+                            int minPosNotZeroId = 0;
+                            while (tempVector.get(minPosNotZeroId, 0) < 0.0001 && minPosNotZeroId < tempVector.numRows()-2) {minPosNotZeroId++;}
+                            for (int p = tempVector.numRows()-1; p >= 0; p--) {
+                                tempVector.set(p, 0, tempVector.get(p, 0) / tempVector.get(0, 0));
+                            }
                         }
+
 
                         // пишем вектор
                         JordanBase =  JordanBase.concatColumns(tempVector);
@@ -303,10 +331,8 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
         StringBuffer sb = new StringBuffer();
         for (int row = 0; row < mat.numRows(); row++) {
             for (int col = 0; col < mat.numCols(); col++) {
-                sb.append(smartRaund(mat.get(row, col)) + " ");
-                //System.out.printf(" ", );
+                sb.append(String.format("%1$12.3f", smartRound(mat.get(row, col))));
             }
-            //System.out.println();
             sb.append("\n");
         }
 
