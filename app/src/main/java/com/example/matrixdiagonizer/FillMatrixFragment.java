@@ -29,6 +29,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class FillMatrixFragment extends Fragment implements View.OnClickListener {
 
@@ -36,6 +37,7 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
     private int rowNum;
     private int colNum;
     private EditText[][] editTexts;
+    EditTextMatrix editTextMatrix = null;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -57,10 +59,16 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
         gridLayout.setColumnCount(colNum);
 
         // create and set up EditTexts in the grid layout
+        if (savedInstanceState != null) {
+            editTextMatrix = savedInstanceState.getParcelable("EditTextMatrix");
+        }
         for (int i = 0; i < rowNum; i++) {
             for (int j = 0; j < colNum; j++) {
                 editTexts[i][j] = new EditText(view.getContext());
                 setPos(editTexts[i][j], i, j);
+                if (editTextMatrix != null) {
+                    editTexts[i][j].setText(editTextMatrix.editTexts[i][j].getText());
+                }
                 gridLayout.addView(editTexts[i][j]);
             }
         }
@@ -84,6 +92,14 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
                 matrix.set(i, j, getEditTextValue(editTexts[i][j]));
             }
         }
+
+        // saving data
+        if (editTextMatrix == null) {
+            editTextMatrix = new EditTextMatrix();
+        }
+        editTextMatrix.editTexts = editTexts;
+        getArguments().putParcelable("EditTextMatrix", editTextMatrix);
+
 
         StringBuffer sb = new StringBuffer();
 
@@ -110,7 +126,7 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
                     sb.append(getVector(vector) + "\n");
                 }
                 if (nullSpaceOfMatrix.numCols() == 0) {
-                    sb.append("Розмірність ядра оператора\nдорівнює нулю.");
+                    sb.append("Розмірність ядра оператора\nдорівнює нулю.\n(Система не має вільних змінних\nабо умови системи задовільняє тільки\nтривіальний розв'язок)");
                 }
 
                 break;
@@ -144,8 +160,7 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
     //putting the edit text according to row and column index
     private void setPos(@NotNull EditText editText, int row, int column) {
         GridLayout.LayoutParams param = new GridLayout.LayoutParams();
-        param.width = 100;
-        //param.height = 100;
+        param.width = 120;
         param.setGravity(Gravity.CENTER);
         param.rowSpec = GridLayout.spec(row);
         param.columnSpec = GridLayout.spec(column);
@@ -228,10 +243,8 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
 
     @NotNull
     @RequiresApi(api = Build.VERSION_CODES.N)
-    private Pair<SimpleMatrix, SimpleMatrix>  getJordanBasis(SimpleMatrix matrix) {
+    private Pair<SimpleMatrix, SimpleMatrix> getJordanBasis(SimpleMatrix matrix) {
         Map<Double, Integer> eigenValues = getMapOfEigenValues(getMainMatrix(matrix));
-        //SimpleMatrix basis = new ;
-        //SimpleMatrix JordanMatrix = ;
         Pair<SimpleMatrix, SimpleMatrix> pair = new Pair<>(new SimpleMatrix(matrix.numRows(), 0),
                 new SimpleMatrix(matrix.numRows(), matrix.numRows()));
 
@@ -239,15 +252,6 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
             SimpleMatrix tempMatrix = decreaseDiagonal(matrix, eigenValue);
             pair = getLocalBasis(tempMatrix, pair, tempMatrix, 1, 0, eigenValues.get(eigenValue), eigenValue);
         }
-
-        /*Equation equation = new Equation();
-        //SimpleMatrix minOne = pair.second.invert();
-        equation.alias(matrix, "A", pair.second, "J");
-        //equation.compile("J = U*A*inv(U)");
-        Sequence predictU = equation.compile("U*J*inv(U) = A");
-        predictU.perform();
-        //pair.first = equation.lookupSimple("U");
-        Pair<SimpleMatrix, SimpleMatrix> pair2 = new Pair<>(equation.lookupSimple("U"), pair.second);*/
 
         return pair;
     }
@@ -271,12 +275,9 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
                 // проходим по всей высоте на уровне
                 for (int j = height; j > 0; j--) {
                     // если можно ещё вписать
-                    if (/*JordanBase.numCols() < JordanBase.numRows()*/ numberOfWrittenValuesAll < targetNumberOfVectors) {
+                    if (numberOfWrittenValuesAll < targetNumberOfVectors) {
                         // возводим вектор на нужную высоту
                         SimpleMatrix tempVector = nullSpace.extractVector(false, i);
-                        /*for (int k = 1; k < j; k++) {
-                            tempVector = startMatrix.mult(tempVector);// tempV = initTempV * tempV
-                        }*/
                         if (j > 1) {
                             SimpleMatrix powerMatrix = startMatrix;
                             for (int k = 1; k < j; k++) {
@@ -284,19 +285,20 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
                             }
                             tempVector = startMatrix.mult(tempVector);
                             int minPosNotZeroId = 0;
-                            while (tempVector.get(minPosNotZeroId, 0) < 0.0001 && minPosNotZeroId < tempVector.numRows()-2) {minPosNotZeroId++;}
-                            for (int p = tempVector.numRows()-1; p >= 0; p--) {
+                            while (tempVector.get(minPosNotZeroId, 0) < 0.000001 && minPosNotZeroId < tempVector.numRows() - 2) {
+                                minPosNotZeroId++;
+                            }
+                            for (int p = tempVector.numRows() - 1; p >= 0; p--) {
                                 tempVector.set(p, 0, tempVector.get(p, 0) / tempVector.get(0, 0));
                             }
                         }
 
 
                         // пишем вектор
-                        JordanBase =  JordanBase.concatColumns(tempVector);
+                        JordanBase = JordanBase.concatColumns(tempVector);
                         numberOfWrittenValues++;
                         numberOfWrittenValuesAll++;
-                    }
-                    else {
+                    } else {
                         break;
                     }
                 }
@@ -305,10 +307,6 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
                     setJordanSell(JordanMatrix, JordanBase.numCols() - numberOfWrittenValues, numberOfWrittenValues, eigenValue);
                 }
             }
-
-            /*if (numberOfWrittenValues > 0) {
-                setJordanSell(JordanMatrix, JordanBase.numCols() - numberOfWrittenValues, numberOfWrittenValues, eigenValue);
-            }*/
         } else {
             tempMatrix = tempMatrix.mult(startMatrix);
             return getLocalBasis(tempMatrix, new Pair<>(JordanBase, JordanMatrix), startMatrix, height + 1, currentNumberOfVectors, targetNumberOfVectors, eigenValue);
@@ -321,7 +319,7 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
         JordanMatrix.set(startPoint, startPoint, eigenValue);
         for (int i = 1; i < cellSize; i++) {
             JordanMatrix.set(startPoint + i, startPoint + i, eigenValue);
-            JordanMatrix.set(startPoint+i-1, startPoint + i, 1d);
+            JordanMatrix.set(startPoint + i - 1, startPoint + i, 1d);
         }
 
         return JordanMatrix;
