@@ -1,5 +1,6 @@
 package com.example.matrixdiagonizer;
 
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 
@@ -18,6 +19,10 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import org.ejml.data.Complex_F64;
+import org.ejml.equation.Equation;
+import org.ejml.equation.Sequence;
+import org.ejml.equation.Variable;
+import org.ejml.equation.VariableType;
 import org.ejml.simple.SimpleMatrix;
 import org.jetbrains.annotations.NotNull;
 
@@ -25,6 +30,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class FillMatrixFragment extends Fragment implements View.OnClickListener {
 
@@ -32,6 +38,7 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
     private int rowNum;
     private int colNum;
     private EditText[][] editTexts;
+    EditTextMatrix editTextMatrix = null;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -53,10 +60,16 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
         gridLayout.setColumnCount(colNum);
 
         // create and set up EditTexts in the grid layout
+        if (savedInstanceState != null) {
+            editTextMatrix = savedInstanceState.getParcelable("EditTextMatrix");
+        }
         for (int i = 0; i < rowNum; i++) {
             for (int j = 0; j < colNum; j++) {
                 editTexts[i][j] = new EditText(view.getContext());
                 setPos(editTexts[i][j], i, j);
+                if (editTextMatrix != null) {
+                    editTexts[i][j].setText(editTextMatrix.editTexts[i][j].getText());
+                }
                 gridLayout.addView(editTexts[i][j]);
             }
         }
@@ -80,6 +93,14 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
                 matrix.set(i, j, getEditTextValue(editTexts[i][j]));
             }
         }
+
+        // saving data
+        if (editTextMatrix == null) {
+            editTextMatrix = new EditTextMatrix();
+        }
+        editTextMatrix.editTexts = editTexts;
+        getArguments().putParcelable("EditTextMatrix", editTextMatrix);
+
 
         StringBuffer sb = new StringBuffer();
 
@@ -106,7 +127,7 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
                     sb.append(getVector(vector) + "\n");
                 }
                 if (nullSpaceOfMatrix.numCols() == 0) {
-                    sb.append("Розмірність ядра оператора\nдорівнює нулю.");
+                    sb.append("Розмірність ядра оператора\nдорівнює нулю.\n(Система не має вільних змінних\nабо умови системи задовільняє тільки\nтривіальний розв'язок)");
                 }
 
                 break;
@@ -117,11 +138,13 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
                 SimpleMatrix JordanMatrix = pair.second;
                 SimpleMatrix JordanBase = pair.first;
 
-                sb.append("Жорданова матриця:\n");
+                sb.append("Жорданова матриця (J):\n");
                 sb.append(printMatrix(JordanMatrix) + "\n");
 
-                sb.append("Жордановий базис:\n");
+                sb.append("Жордановий базис (U):\n");
                 sb.append(printMatrix(JordanBase) + "\n");
+
+                sb.append("Де J = U^(-1) * A * U");
 
                 break;
             default:
@@ -138,14 +161,15 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
     //putting the edit text according to row and column index
     private void setPos(@NotNull EditText editText, int row, int column) {
         GridLayout.LayoutParams param = new GridLayout.LayoutParams();
-        param.width = 100;
-        //param.height = 100;
+        param.width = 120;
         param.setGravity(Gravity.CENTER);
         param.rowSpec = GridLayout.spec(row);
         param.columnSpec = GridLayout.spec(column);
+        param.setMargins(2,2,2,2);
         editText.setLayoutParams(param);
 
         editText.setHint("0");
+        //editText.setBackgroundColor(Color.parseColor("#000000"));
         editText.setInputType(InputType.TYPE_CLASS_NUMBER |
                 InputType.TYPE_NUMBER_FLAG_SIGNED |
                 InputType.TYPE_NUMBER_FLAG_DECIMAL);
@@ -169,13 +193,13 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
 
         // setting the map with values
         for (Complex_F64 eigenValue : getMainMatrix(matrix).eig().getEigenvalues()) {
-            eigenValues.merge(smartRaund(eigenValue), 1, Integer::sum);
+            eigenValues.merge(smartRound(eigenValue), 1, Integer::sum);
         }
 
         return eigenValues;
     }
 
-    private Double smartRaund(@NotNull Complex_F64 eigenValue) {
+    private Double smartRound(@NotNull Complex_F64 eigenValue) {
         Double value = eigenValue.getReal();
         Double valueRound = new BigDecimal(value).setScale(3, RoundingMode.HALF_UP)
                 .doubleValue();
@@ -186,7 +210,7 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
         return value;
     }
 
-    private Double smartRaund(@NotNull double eigenValue) {
+    private Double smartRound(double eigenValue) {
         Double value = eigenValue;
         Double valueRound = new BigDecimal(value).setScale(3, RoundingMode.HALF_UP)
                 .doubleValue();
@@ -222,10 +246,8 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
 
     @NotNull
     @RequiresApi(api = Build.VERSION_CODES.N)
-    private Pair<SimpleMatrix, SimpleMatrix>  getJordanBasis(SimpleMatrix matrix) {
+    private Pair<SimpleMatrix, SimpleMatrix> getJordanBasis(SimpleMatrix matrix) {
         Map<Double, Integer> eigenValues = getMapOfEigenValues(getMainMatrix(matrix));
-        //SimpleMatrix basis = new ;
-        //SimpleMatrix JordanMatrix = ;
         Pair<SimpleMatrix, SimpleMatrix> pair = new Pair<>(new SimpleMatrix(matrix.numRows(), 0),
                 new SimpleMatrix(matrix.numRows(), matrix.numRows()));
 
@@ -256,19 +278,30 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
                 // проходим по всей высоте на уровне
                 for (int j = height; j > 0; j--) {
                     // если можно ещё вписать
-                    if (/*JordanBase.numCols() < JordanBase.numRows()*/ numberOfWrittenValuesAll < targetNumberOfVectors) {
+                    if (numberOfWrittenValuesAll < targetNumberOfVectors) {
                         // возводим вектор на нужную высоту
                         SimpleMatrix tempVector = nullSpace.extractVector(false, i);
-                        for (int k = 1; k < j; k++) {
+                        if (j > 1) {
+                            SimpleMatrix powerMatrix = startMatrix;
+                            for (int k = 1; k < j; k++) {
+                                powerMatrix = powerMatrix.mult(startMatrix);
+                            }
                             tempVector = startMatrix.mult(tempVector);
+                            int minPosNotZeroId = 0;
+                            while (tempVector.get(minPosNotZeroId, 0) < 0.000001 && minPosNotZeroId < tempVector.numRows() - 2) {
+                                minPosNotZeroId++;
+                            }
+                            for (int p = tempVector.numRows() - 1; p >= 0; p--) {
+                                tempVector.set(p, 0, tempVector.get(p, 0) / tempVector.get(0, 0));
+                            }
                         }
 
+
                         // пишем вектор
-                        JordanBase =  JordanBase.concatColumns(tempVector);
+                        JordanBase = JordanBase.concatColumns(tempVector);
                         numberOfWrittenValues++;
                         numberOfWrittenValuesAll++;
-                    }
-                    else {
+                    } else {
                         break;
                     }
                 }
@@ -277,10 +310,6 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
                     setJordanSell(JordanMatrix, JordanBase.numCols() - numberOfWrittenValues, numberOfWrittenValues, eigenValue);
                 }
             }
-
-            /*if (numberOfWrittenValues > 0) {
-                setJordanSell(JordanMatrix, JordanBase.numCols() - numberOfWrittenValues, numberOfWrittenValues, eigenValue);
-            }*/
         } else {
             tempMatrix = tempMatrix.mult(startMatrix);
             return getLocalBasis(tempMatrix, new Pair<>(JordanBase, JordanMatrix), startMatrix, height + 1, currentNumberOfVectors, targetNumberOfVectors, eigenValue);
@@ -293,7 +322,7 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
         JordanMatrix.set(startPoint, startPoint, eigenValue);
         for (int i = 1; i < cellSize; i++) {
             JordanMatrix.set(startPoint + i, startPoint + i, eigenValue);
-            JordanMatrix.set(startPoint+i-1, startPoint + i, 1d);
+            JordanMatrix.set(startPoint + i - 1, startPoint + i, 1d);
         }
 
         return JordanMatrix;
@@ -303,10 +332,8 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
         StringBuffer sb = new StringBuffer();
         for (int row = 0; row < mat.numRows(); row++) {
             for (int col = 0; col < mat.numCols(); col++) {
-                sb.append(smartRaund(mat.get(row, col)) + " ");
-                //System.out.printf(" ", );
+                sb.append(String.format("%1$12.3f", smartRound(mat.get(row, col))));
             }
-            //System.out.println();
             sb.append("\n");
         }
 
