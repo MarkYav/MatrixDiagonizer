@@ -1,5 +1,6 @@
 package com.example.matrixdiagonizer;
 
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 
@@ -164,9 +165,11 @@ public class FillMatrixFragment extends Fragment implements View.OnClickListener
         param.setGravity(Gravity.CENTER);
         param.rowSpec = GridLayout.spec(row);
         param.columnSpec = GridLayout.spec(column);
+        param.setMargins(2,2,2,2);
         editText.setLayoutParams(param);
 
         editText.setHint("0");
+        //editText.setBackgroundColor(Color.parseColor("#000000"));
         editText.setInputType(InputType.TYPE_CLASS_NUMBER |
                 InputType.TYPE_NUMBER_FLAG_SIGNED |
                 InputType.TYPE_NUMBER_FLAG_DECIMAL);
